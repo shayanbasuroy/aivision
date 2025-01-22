@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>COCO-SSD and Tesseract.js from Camera Feed</title>
+    <style>
+      canvas {
+        border: 1px solid black;
+        display: block;
+        margin: 10px auto;
+      }
+      video {
+        display: none; /* Hide video element */
+      }
+      .output {
+        margin-top: 10px;
+        text-align: center;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>COCO-SSD Object Detection and OCR from Camera</h1>
+
+    <video
+      id="video"
+      width="640"
+      height="480"
+      autoplay
+      playsinline
+      muted
+    ></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <div class="output">
+      <h3>Detected Objects:</h3>
+      <ul id="detectedObjects"></ul>
+      <h3>Extracted Text:</h3>
+      <pre id="extractedText"></pre>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js"></script>
+    <script>
+      // Load the COCO-SSD model
+      let model;
+      cocoSsd
+        .load()
+        .then((loadedModel) => {
+          model = loadedModel;
+          console.log("COCO-SSD model loaded successfully.");
+        })
+        .catch((error) => {
+          console.error("Error loading COCO-SSD model:", error);
+        });
+
+      // Access the device's camera
+      const videoElement = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // Start camera feed
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+          });
+          videoElement.srcObject = stream;
+          videoElement.play();
+          console.log("Camera is ready.");
+        } catch (err) {
+          console.error("Error accessing camera:", err);
+          alert(
+            "Unable to access the camera. Please check your device permissions and ensure you're using a secure HTTPS connection."
+          );
+        }
+      }
+
+      // Capture the frame from the video feed
+      function captureFrame() {
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        detectObjects(canvas);
+        recognizeText(canvas);
+      }
+
+      // Detect objects with COCO-SSD
+      async function detectObjects(canvas) {
+        if (model) {
+          const predictions = await model.detect(canvas);
+          displayDetectedObjects(predictions);
+          announceDetectedObjects(predictions);
+        }
+      }
+
+      // Display detected objects
+      function displayDetectedObjects(predictions) {
+        const detectedObjectsElement =
+          document.getElementById("detectedObjects");
+        detectedObjectsElement.innerHTML = ""; // Clear previous objects
+        predictions.forEach((prediction) => {
+          const li = document.createElement("li");
+          li.textContent = `${prediction.class} - ${Math.round(
+            prediction.score * 100
+          )}%`;
+          detectedObjectsElement.appendChild(li);
+        });
+      }
+
+      // Announce detected objects
+      function announceDetectedObjects(predictions) {
+        if (predictions.length > 0) {
+          const objectNames = predictions.map((pred) => pred.class).join(", ");
+          const speech = new SpeechSynthesisUtterance(
+            `Detected objects: ${objectNames}`
+          );
+          window.speechSynthesis.speak(speech);
+        }
+      }
+
+      // Recognize text using Tesseract.js
+      async function recognizeText(canvas) {
+        try {
+          const textElement = document.getElementById("extractedText");
+          textElement.textContent = "Recognizing text...";
+
+          const {
+            data: { text },
+          } = await Tesseract.recognize(canvas, "eng", {
+            logger: (m) => console.log(m),
+          });
+
+          textElement.textContent = text;
+          announceRecognizedText(text);
+        } catch (error) {
+          console.error("Error recognizing text:", error);
+          document.getElementById("extractedText").textContent =
+            "Error recognizing text.";
+        }
+      }
+
+      // Announce recognized text
+      function announceRecognizedText(text) {
+        if (text.trim() !== "") {
+          const speech = new SpeechSynthesisUtterance(text);
+          window.speechSynthesis.speak(speech);
+        }
+      }
+
+      // Continuously capture frames from the camera and process them
+      setInterval(captureFrame, 1000); // Process every second
+
+      // Start the camera on page load
+      startCamera();
+    </script>
+  </body>
+</html>
