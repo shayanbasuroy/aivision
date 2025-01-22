@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Vision for Blind using TensorFlow</title>
     <style>
+      /* Apple California style with Dark Mode */
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
         background-color: #1c1c1e;
         color: #e5e5e5;
         margin: 0;
@@ -24,7 +27,7 @@
         background-color: #2c2c2e;
         border-radius: 10px;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-        width: 90%;
+        width: 80%;
         max-width: 800px;
       }
 
@@ -35,9 +38,8 @@
 
       .camera-container {
         position: relative;
-        width: 100%;
-        height: 100%;
-        max-width: 640px;
+        width: 640px;
+        height: 480px;
         margin: 20px 0;
       }
 
@@ -65,11 +67,11 @@
       }
 
       button.green {
-        background-color: #4caf50;
+        background-color: #4caf50; /* Green when enabled */
       }
 
       button.red {
-        background-color: #e53935;
+        background-color: #e53935; /* Red when disabled */
       }
 
       button:hover {
@@ -96,31 +98,6 @@
         font-size: 1rem;
         color: #e5e5e5;
       }
-
-      @media (max-width: 768px) {
-        h1 {
-          font-size: 2rem;
-        }
-
-        .camera-container {
-          max-width: 100%;
-        }
-
-        button {
-          font-size: 14px;
-          padding: 10px 18px;
-        }
-      }
-
-      @media (max-width: 480px) {
-        h1 {
-          font-size: 1.5rem;
-        }
-
-        .container {
-          padding: 15px;
-        }
-      }
     </style>
   </head>
   <body>
@@ -132,8 +109,12 @@
         <canvas id="objectDetectionCanvas" width="640" height="480"></canvas>
       </div>
 
-      <button id="enableObjectDetection" class="green">Disable Object Detection</button>
-      <button id="enableTextDetection" class="red">Enable Text Detection</button>
+      <button id="enableObjectDetection" class="green">
+        Disable Object Detection
+      </button>
+      <button id="enableTextDetection" class="red">
+        Enable Text Detection
+      </button>
 
       <div class="output">
         <h3>Detected Objects:</h3>
@@ -152,7 +133,6 @@
       let textDetectionEnabled = false;
       let textDetectionInterval;
       let textQueue = [];
-      let lastAnnouncedTime = 0; // Track time of last announcement
 
       // Load the COCO-SSD model
       cocoSsd
@@ -168,7 +148,9 @@
 
       // Access the device's camera
       const videoElement = document.getElementById("video");
-      const objectDetectionCanvas = document.getElementById("objectDetectionCanvas");
+      const objectDetectionCanvas = document.getElementById(
+        "objectDetectionCanvas"
+      );
       const ctx = objectDetectionCanvas.getContext("2d");
 
       // Start camera feed
@@ -185,8 +167,19 @@
 
       // Capture the frame from the video feed
       function captureFrame() {
-        ctx.clearRect(0, 0, objectDetectionCanvas.width, objectDetectionCanvas.height);
-        ctx.drawImage(videoElement, 0, 0, objectDetectionCanvas.width, objectDetectionCanvas.height);
+        ctx.clearRect(
+          0,
+          0,
+          objectDetectionCanvas.width,
+          objectDetectionCanvas.height
+        );
+        ctx.drawImage(
+          videoElement,
+          0,
+          0,
+          objectDetectionCanvas.width,
+          objectDetectionCanvas.height
+        );
         if (objectDetectionEnabled) {
           detectObjects();
         }
@@ -201,19 +194,20 @@
           const predictions = await model.detect(objectDetectionCanvas);
           displayDetectedObjects(predictions);
           drawDetectedBoxes(predictions);
-          if (objectDetectionEnabled) {
-            announceDetectedObjects(predictions);
-          }
+          announceDetectedObjects(predictions);
         }
       }
 
       // Display detected objects
       function displayDetectedObjects(predictions) {
-        const detectedObjectsElement = document.getElementById("detectedObjects");
+        const detectedObjectsElement =
+          document.getElementById("detectedObjects");
         detectedObjectsElement.innerHTML = ""; // Clear previous objects
         predictions.forEach((prediction) => {
           const li = document.createElement("li");
-          li.textContent = `${prediction.class} - ${Math.round(prediction.score * 100)}%`;
+          li.textContent = `${prediction.class} - ${Math.round(
+            prediction.score * 100
+          )}%`;
           detectedObjectsElement.appendChild(li);
         });
       }
@@ -244,16 +238,10 @@
       function announceDetectedObjects(predictions) {
         if (predictions.length > 0) {
           const objectNames = predictions.map((pred) => pred.class).join(", ");
-          const currentTime = new Date().getTime();
-
-          // Only announce if enough time has passed (to prevent flooding the speech)
-          if (currentTime - lastAnnouncedTime > 5000) { // 5-second delay
-            const speech = new SpeechSynthesisUtterance(
-              `Detected objects: ${objectNames}`
-            );
-            speechSynthesis.speak(speech);
-            lastAnnouncedTime = currentTime; // Update last announced time
-          }
+          const speech = new SpeechSynthesisUtterance(
+            `Detected objects: ${objectNames}`
+          );
+          window.speechSynthesis.speak(speech);
         }
       }
 
@@ -290,47 +278,55 @@
           textDetectionInterval = setInterval(() => {
             if (wordIndex < words.length) {
               const speech = new SpeechSynthesisUtterance(words[wordIndex]);
-              speechSynthesis.speak(speech);
+              window.speechSynthesis.speak(speech);
               wordIndex++;
             } else {
-              clearInterval(textDetectionInterval); // Stop the interval when all words are spoken
+              clearInterval(textDetectionInterval); // Stop the interval when all words are announced
             }
-          }, 10000); // 10 seconds delay between words
+          }, 10000); // 10-second delay between words
         }
       }
 
-      // Toggle Object Detection
-      document.getElementById("enableObjectDetection").addEventListener("click", () => {
-        objectDetectionEnabled = !objectDetectionEnabled;
-        const button = document.getElementById("enableObjectDetection");
-        if (objectDetectionEnabled) {
-          button.textContent = "Disable Object Detection";
-          button.classList.remove("red");
-          button.classList.add("green");
-        } else {
-          button.textContent = "Enable Object Detection";
-          button.classList.remove("green");
-          button.classList.add("red");
-        }
-      });
+      // Enable or disable object detection when button is clicked
+      document
+        .getElementById("enableObjectDetection")
+        .addEventListener("click", () => {
+          objectDetectionEnabled = !objectDetectionEnabled;
+          const button = document.getElementById("enableObjectDetection");
 
-      // Toggle Text Detection
-      document.getElementById("enableTextDetection").addEventListener("click", () => {
-        textDetectionEnabled = !textDetectionEnabled;
-        const button = document.getElementById("enableTextDetection");
-        if (textDetectionEnabled) {
-          button.textContent = "Disable Text Detection";
-          button.classList.remove("red");
-          button.classList.add("green");
-        } else {
-          button.textContent = "Enable Text Detection";
-          button.classList.remove("green");
-          button.classList.add("red");
-        }
-      });
+          if (objectDetectionEnabled) {
+            button.classList.remove("red");
+            button.classList.add("green");
+            button.textContent = "Disable Object Detection";
+          } else {
+            button.classList.remove("green");
+            button.classList.add("red");
+            button.textContent = "Enable Object Detection";
+          }
+        });
 
-      // Continuously capture frames
-      setInterval(captureFrame, 100); // Capture every 100ms
+      // Enable or disable text detection when button is clicked
+      document
+        .getElementById("enableTextDetection")
+        .addEventListener("click", () => {
+          textDetectionEnabled = !textDetectionEnabled;
+          const button = document.getElementById("enableTextDetection");
+
+          if (textDetectionEnabled) {
+            button.classList.remove("red");
+            button.classList.add("green");
+            button.textContent = "Disable Text Detection";
+            alert("Text detection enabled!");
+          } else {
+            button.classList.remove("green");
+            button.classList.add("red");
+            button.textContent = "Enable Text Detection";
+            alert("Text detection disabled!");
+          }
+        });
+
+      // Continuously capture frames from the camera and process them
+      setInterval(captureFrame, 1000); // Process every second
     </script>
   </body>
 </html>
