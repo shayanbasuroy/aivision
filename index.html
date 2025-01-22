@@ -7,9 +7,7 @@
     <style>
       /* Apple California style with Dark Mode */
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
-          "Helvetica Neue", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
         background-color: #1c1c1e;
         color: #e5e5e5;
         margin: 0;
@@ -27,7 +25,7 @@
         background-color: #2c2c2e;
         border-radius: 10px;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-        width: 80%;
+        width: 90%;
         max-width: 800px;
       }
 
@@ -38,8 +36,9 @@
 
       .camera-container {
         position: relative;
-        width: 640px;
-        height: 480px;
+        width: 100%;
+        height: 100%;
+        max-width: 640px;
         margin: 20px 0;
       }
 
@@ -98,6 +97,32 @@
         font-size: 1rem;
         color: #e5e5e5;
       }
+
+      /* Responsive design */
+      @media (max-width: 768px) {
+        h1 {
+          font-size: 2rem;
+        }
+
+        .camera-container {
+          max-width: 100%;
+        }
+
+        button {
+          font-size: 14px;
+          padding: 10px 18px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        h1 {
+          font-size: 1.5rem;
+        }
+
+        .container {
+          padding: 15px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -109,12 +134,8 @@
         <canvas id="objectDetectionCanvas" width="640" height="480"></canvas>
       </div>
 
-      <button id="enableObjectDetection" class="green">
-        Disable Object Detection
-      </button>
-      <button id="enableTextDetection" class="red">
-        Enable Text Detection
-      </button>
+      <button id="enableObjectDetection" class="green">Disable Object Detection</button>
+      <button id="enableTextDetection" class="red">Enable Text Detection</button>
 
       <div class="output">
         <h3>Detected Objects:</h3>
@@ -148,9 +169,7 @@
 
       // Access the device's camera
       const videoElement = document.getElementById("video");
-      const objectDetectionCanvas = document.getElementById(
-        "objectDetectionCanvas"
-      );
+      const objectDetectionCanvas = document.getElementById("objectDetectionCanvas");
       const ctx = objectDetectionCanvas.getContext("2d");
 
       // Start camera feed
@@ -167,19 +186,8 @@
 
       // Capture the frame from the video feed
       function captureFrame() {
-        ctx.clearRect(
-          0,
-          0,
-          objectDetectionCanvas.width,
-          objectDetectionCanvas.height
-        );
-        ctx.drawImage(
-          videoElement,
-          0,
-          0,
-          objectDetectionCanvas.width,
-          objectDetectionCanvas.height
-        );
+        ctx.clearRect(0, 0, objectDetectionCanvas.width, objectDetectionCanvas.height);
+        ctx.drawImage(videoElement, 0, 0, objectDetectionCanvas.width, objectDetectionCanvas.height);
         if (objectDetectionEnabled) {
           detectObjects();
         }
@@ -241,7 +249,7 @@
           const speech = new SpeechSynthesisUtterance(
             `Detected objects: ${objectNames}`
           );
-          window.speechSynthesis.speak(speech);
+          speechSynthesis.speak(speech);
         }
       }
 
@@ -278,55 +286,60 @@
           textDetectionInterval = setInterval(() => {
             if (wordIndex < words.length) {
               const speech = new SpeechSynthesisUtterance(words[wordIndex]);
-              window.speechSynthesis.speak(speech);
+              speechSynthesis.speak(speech);
               wordIndex++;
             } else {
-              clearInterval(textDetectionInterval); // Stop the interval when all words are announced
+              clearInterval(textDetectionInterval); // Stop the interval when all words are spoken
             }
-          }, 10000); // 10-second delay between words
+          }, 10000);
         }
       }
 
-      // Enable or disable object detection when button is clicked
-      document
-        .getElementById("enableObjectDetection")
-        .addEventListener("click", () => {
-          objectDetectionEnabled = !objectDetectionEnabled;
-          const button = document.getElementById("enableObjectDetection");
+      // Toggle object detection
+      document.getElementById("enableObjectDetection").addEventListener("click", () => {
+        objectDetectionEnabled = !objectDetectionEnabled;
+        document.getElementById("enableObjectDetection").classList.toggle("green");
+        document.getElementById("enableObjectDetection").classList.toggle("red");
+        document.getElementById("enableObjectDetection").textContent =
+          objectDetectionEnabled ? "Disable Object Detection" : "Enable Object Detection";
+      });
 
-          if (objectDetectionEnabled) {
-            button.classList.remove("red");
-            button.classList.add("green");
-            button.textContent = "Disable Object Detection";
-          } else {
-            button.classList.remove("green");
-            button.classList.add("red");
-            button.textContent = "Enable Object Detection";
+      // Toggle text detection
+      document.getElementById("enableTextDetection").addEventListener("click", () => {
+        textDetectionEnabled = !textDetectionEnabled;
+        document.getElementById("enableTextDetection").classList.toggle("green");
+        document.getElementById("enableTextDetection").classList.toggle("red");
+        document.getElementById("enableTextDetection").textContent =
+          textDetectionEnabled ? "Disable Text Detection" : "Enable Text Detection";
+      });
+
+      // Check if the scene is too dark and auto-enable flash (on mobile)
+      async function checkSceneBrightness() {
+        if (navigator.mediaDevices && window.devicePixelRatio > 1) {
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          let brightness = 0;
+          for (let i = 0; i < imageData.data.length; i += 4) {
+            const r = imageData.data[i];
+            const g = imageData.data[i + 1];
+            const b = imageData.data[i + 2];
+            brightness += 0.2126 * r + 0.7152 * g + 0.0722 * b;
           }
-        });
+          brightness /= (canvas.width * canvas.height);
 
-      // Enable or disable text detection when button is clicked
-      document
-        .getElementById("enableTextDetection")
-        .addEventListener("click", () => {
-          textDetectionEnabled = !textDetectionEnabled;
-          const button = document.getElementById("enableTextDetection");
-
-          if (textDetectionEnabled) {
-            button.classList.remove("red");
-            button.classList.add("green");
-            button.textContent = "Disable Text Detection";
-            alert("Text detection enabled!");
-          } else {
-            button.classList.remove("green");
-            button.classList.add("red");
-            button.textContent = "Enable Text Detection";
-            alert("Text detection disabled!");
+          // Turn on flash if brightness is below threshold
+          if (brightness < 50) {
+            console.log("Scene is too dark, enabling flash.");
+            // Enable flash if using mobile camera
           }
-        });
+        }
+      }
 
-      // Continuously capture frames from the camera and process them
-      setInterval(captureFrame, 1000); // Process every second
+      setInterval(captureFrame, 100); // Capture frame every 100ms
+      setInterval(checkSceneBrightness, 5000); // Check brightness every 5 seconds
     </script>
   </body>
 </html>
