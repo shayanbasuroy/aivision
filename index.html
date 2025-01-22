@@ -3,58 +3,144 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>COCO-SSD and Tesseract.js from Camera Feed</title>
+    <title>AI Vision for Blind using TensorFlow</title>
     <style>
-      canvas {
-        border: 1px solid black;
-        display: block;
-        margin: 10px auto;
-      }
-      video {
-        display: none; /* Hide video element */
-      }
-      .output {
-        margin-top: 10px;
-        text-align: center;
-      }
+      /* Apple California style with Dark Mode */
       body {
-        font-family: Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        background-color: #1c1c1e;
+        color: #e5e5e5;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        flex-direction: column;
+      }
+
+      .container {
         text-align: center;
-        padding: 10px;
+        padding: 20px;
+        background-color: #2c2c2e;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        width: 80%;
+        max-width: 800px;
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        color: #ffffff;
+      }
+
+      .camera-container {
+        position: relative;
+        width: 640px;
+        height: 480px;
+        margin: 20px 0;
+      }
+
+      video,
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      }
+
+      button {
+        background-color: #007aff;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 20px;
+        transition: background-color 0.3s ease;
+      }
+
+      button.green {
+        background-color: #4caf50; /* Green when enabled */
+      }
+
+      button.red {
+        background-color: #e53935; /* Red when disabled */
+      }
+
+      button:hover {
+        opacity: 0.8;
+      }
+
+      .output {
+        margin-top: 20px;
+        text-align: left;
+      }
+
+      ul {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      li {
+        padding: 5px 0;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-size: 1rem;
+        color: #e5e5e5;
       }
     </style>
   </head>
   <body>
-    <h1>COCO-SSD Object Detection and OCR from Camera</h1>
+    <div class="container">
+      <h1>AI Vision for Blind using TensorFlow</h1>
 
-    <video
-      id="video"
-      width="640"
-      height="480"
-      autoplay
-      playsinline
-      muted
-    ></video>
-    <canvas id="canvas" width="640" height="480"></canvas>
+      <div class="camera-container">
+        <video id="video" width="640" height="480" autoplay></video>
+        <canvas id="objectDetectionCanvas" width="640" height="480"></canvas>
+      </div>
 
-    <div class="output">
-      <h3>Detected Objects:</h3>
-      <ul id="detectedObjects"></ul>
-      <h3>Extracted Text:</h3>
-      <pre id="extractedText"></pre>
+      <button id="enableObjectDetection" class="green">
+        Disable Object Detection
+      </button>
+      <button id="enableTextDetection" class="red">
+        Enable Text Detection
+      </button>
+
+      <div class="output">
+        <h3>Detected Objects:</h3>
+        <ul id="detectedObjects"></ul>
+        <h3>Extracted Text:</h3>
+        <pre id="extractedText"></pre>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js"></script>
     <script>
-      // Load the COCO-SSD model
       let model;
+      let objectDetectionEnabled = true;
+      let textDetectionEnabled = false;
+      let textDetectionInterval;
+      let textQueue = [];
+
+      // Load the COCO-SSD model
       cocoSsd
         .load()
         .then((loadedModel) => {
           model = loadedModel;
           console.log("COCO-SSD model loaded successfully.");
+          detectObjects();
         })
         .catch((error) => {
           console.error("Error loading COCO-SSD model:", error);
@@ -62,38 +148,52 @@
 
       // Access the device's camera
       const videoElement = document.getElementById("video");
-      const canvas = document.getElementById("canvas");
-      const ctx = canvas.getContext("2d");
+      const objectDetectionCanvas = document.getElementById(
+        "objectDetectionCanvas"
+      );
+      const ctx = objectDetectionCanvas.getContext("2d");
 
       // Start camera feed
-      async function startCamera() {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
-          });
+      navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: "environment" } })
+        .then((stream) => {
           videoElement.srcObject = stream;
           videoElement.play();
           console.log("Camera is ready.");
-        } catch (err) {
+        })
+        .catch((err) => {
           console.error("Error accessing camera:", err);
-          alert(
-            "Unable to access the camera. Please check your device permissions and ensure you're using a secure HTTPS connection."
-          );
-        }
-      }
+        });
 
       // Capture the frame from the video feed
       function captureFrame() {
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        detectObjects(canvas);
-        recognizeText(canvas);
+        ctx.clearRect(
+          0,
+          0,
+          objectDetectionCanvas.width,
+          objectDetectionCanvas.height
+        );
+        ctx.drawImage(
+          videoElement,
+          0,
+          0,
+          objectDetectionCanvas.width,
+          objectDetectionCanvas.height
+        );
+        if (objectDetectionEnabled) {
+          detectObjects();
+        }
+        if (textDetectionEnabled) {
+          recognizeText();
+        }
       }
 
       // Detect objects with COCO-SSD
-      async function detectObjects(canvas) {
+      async function detectObjects() {
         if (model) {
-          const predictions = await model.detect(canvas);
+          const predictions = await model.detect(objectDetectionCanvas);
           displayDetectedObjects(predictions);
+          drawDetectedBoxes(predictions);
           announceDetectedObjects(predictions);
         }
       }
@@ -112,6 +212,28 @@
         });
       }
 
+      // Draw bounding boxes around detected objects
+      function drawDetectedBoxes(predictions) {
+        predictions.forEach((prediction) => {
+          ctx.beginPath();
+          ctx.rect(
+            prediction.bbox[0],
+            prediction.bbox[1],
+            prediction.bbox[2],
+            prediction.bbox[3]
+          );
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "red";
+          ctx.fillStyle = "red";
+          ctx.stroke();
+          ctx.fillText(
+            `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+            prediction.bbox[0],
+            prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+          );
+        });
+      }
+
       // Announce detected objects
       function announceDetectedObjects(predictions) {
         if (predictions.length > 0) {
@@ -124,19 +246,20 @@
       }
 
       // Recognize text using Tesseract.js
-      async function recognizeText(canvas) {
+      async function recognizeText() {
         try {
           const textElement = document.getElementById("extractedText");
           textElement.textContent = "Recognizing text...";
 
           const {
             data: { text },
-          } = await Tesseract.recognize(canvas, "eng", {
+          } = await Tesseract.recognize(objectDetectionCanvas, "eng", {
             logger: (m) => console.log(m),
           });
 
           textElement.textContent = text;
-          announceRecognizedText(text);
+          textQueue.push(text);
+          announceRecognizedText();
         } catch (error) {
           console.error("Error recognizing text:", error);
           document.getElementById("extractedText").textContent =
@@ -144,19 +267,67 @@
         }
       }
 
-      // Announce recognized text
-      function announceRecognizedText(text) {
-        if (text.trim() !== "") {
-          const speech = new SpeechSynthesisUtterance(text);
-          window.speechSynthesis.speak(speech);
+      // Announce recognized text with 10-second delay between words
+      function announceRecognizedText() {
+        if (textQueue.length > 0) {
+          const text = textQueue.shift();
+          let words = text.split(" ");
+          let wordIndex = 0;
+
+          // Announce each word with 10-second delay
+          textDetectionInterval = setInterval(() => {
+            if (wordIndex < words.length) {
+              const speech = new SpeechSynthesisUtterance(words[wordIndex]);
+              window.speechSynthesis.speak(speech);
+              wordIndex++;
+            } else {
+              clearInterval(textDetectionInterval); // Stop the interval when all words are announced
+            }
+          }, 10000); // 10-second delay between words
         }
       }
 
+      // Enable or disable object detection when button is clicked
+      document
+        .getElementById("enableObjectDetection")
+        .addEventListener("click", () => {
+          objectDetectionEnabled = !objectDetectionEnabled;
+          const button = document.getElementById("enableObjectDetection");
+
+          if (objectDetectionEnabled) {
+            button.classList.remove("red");
+            button.classList.add("green");
+            button.textContent = "Disable Object Detection";
+          } else {
+            button.classList.remove("green");
+            button.classList.add("red");
+            button.textContent = "Enable Object Detection";
+          }
+        });
+
+      // Enable or disable text detection when button is clicked
+      document
+        .getElementById("enableTextDetection")
+        .addEventListener("click", () => {
+          textDetectionEnabled = !textDetectionEnabled;
+          const button = document.getElementById("enableTextDetection");
+
+          if (textDetectionEnabled) {
+            button.classList.remove("red");
+            button.classList.add("green");
+            button.textContent = "Disable Text Detection";
+            alert("Text detection enabled!");
+          } else {
+            button.classList.remove("green");
+            button.classList.add("red");
+            button.textContent = "Enable Text Detection";
+            alert("Text detection disabled!");
+          }
+        });
+
       // Continuously capture frames from the camera and process them
       setInterval(captureFrame, 1000); // Process every second
-
-      // Start the camera on page load
-      startCamera();
     </script>
   </body>
 </html>
+
