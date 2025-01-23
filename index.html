@@ -131,8 +131,8 @@
       let model;
       let objectDetectionEnabled = true;
       let textDetectionEnabled = false;
-      let textDetectionInterval;
-      let textQueue = [];
+      let currentSpeechQueue = []; // Queue for announcements
+      let isSpeaking = false;
 
       // Load the COCO-SSD model
       cocoSsd
@@ -153,7 +153,6 @@
       );
       const ctx = objectDetectionCanvas.getContext("2d");
 
-      // Start camera feed
       navigator.mediaDevices
         .getUserMedia({ video: { facingMode: "environment" } })
         .then((stream) => {
@@ -165,7 +164,6 @@
           console.error("Error accessing camera:", err);
         });
 
-      // Capture the frame from the video feed
       function captureFrame() {
         ctx.clearRect(
           0,
@@ -183,26 +181,21 @@
         if (objectDetectionEnabled) {
           detectObjects();
         }
-        if (textDetectionEnabled) {
-          recognizeText();
-        }
       }
 
-      // Detect objects with COCO-SSD
       async function detectObjects() {
         if (model) {
           const predictions = await model.detect(objectDetectionCanvas);
           displayDetectedObjects(predictions);
           drawDetectedBoxes(predictions);
-          announceDetectedObjects(predictions);
+          queueDetectedObjects(predictions);
         }
       }
 
-      // Display detected objects
       function displayDetectedObjects(predictions) {
         const detectedObjectsElement =
           document.getElementById("detectedObjects");
-        detectedObjectsElement.innerHTML = ""; // Clear previous objects
+        detectedObjectsElement.innerHTML = "";
         predictions.forEach((prediction) => {
           const li = document.createElement("li");
           li.textContent = `${prediction.class} - ${Math.round(
@@ -212,7 +205,6 @@
         });
       }
 
-      // Draw bounding boxes around detected objects
       function drawDetectedBoxes(predictions) {
         predictions.forEach((prediction) => {
           ctx.beginPath();
@@ -224,109 +216,43 @@
           );
           ctx.lineWidth = 3;
           ctx.strokeStyle = "red";
-          ctx.fillStyle = "red";
           ctx.stroke();
-          ctx.fillText(
-            `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
-            prediction.bbox[0],
-            prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
-          );
         });
       }
 
-      // Announce detected objects
-      function announceDetectedObjects(predictions) {
-        if (predictions.length > 0) {
-          const objectNames = predictions.map((pred) => pred.class).join(", ");
+      function queueDetectedObjects(predictions) {
+        const objectNames = predictions.map((pred) => pred.class).join(", ");
+        if (objectNames && !isSpeaking) {
+          currentSpeechQueue.push(`Detected objects: ${objectNames}`);
+          speakNextInQueue();
+        }
+      }
+
+      function speakNextInQueue() {
+        if (currentSpeechQueue.length > 0 && !isSpeaking) {
+          isSpeaking = true;
           const speech = new SpeechSynthesisUtterance(
-            `Detected objects: ${objectNames}`
+            currentSpeechQueue.shift()
           );
+          speech.onend = () => {
+            isSpeaking = false;
+            speakNextInQueue();
+          };
           window.speechSynthesis.speak(speech);
         }
       }
 
-      // Recognize text using Tesseract.js
-      async function recognizeText() {
-        try {
-          const textElement = document.getElementById("extractedText");
-          textElement.textContent = "Recognizing text...";
-
-          const {
-            data: { text },
-          } = await Tesseract.recognize(objectDetectionCanvas, "eng", {
-            logger: (m) => console.log(m),
-          });
-
-          textElement.textContent = text;
-          textQueue.push(text);
-          announceRecognizedText();
-        } catch (error) {
-          console.error("Error recognizing text:", error);
-          document.getElementById("extractedText").textContent =
-            "Error recognizing text.";
-        }
-      }
-
-      // Announce recognized text with 10-second delay between words
-      function announceRecognizedText() {
-        if (textQueue.length > 0) {
-          const text = textQueue.shift();
-          let words = text.split(" ");
-          let wordIndex = 0;
-
-          // Announce each word with 10-second delay
-          textDetectionInterval = setInterval(() => {
-            if (wordIndex < words.length) {
-              const speech = new SpeechSynthesisUtterance(words[wordIndex]);
-              window.speechSynthesis.speak(speech);
-              wordIndex++;
-            } else {
-              clearInterval(textDetectionInterval); // Stop the interval when all words are announced
-            }
-          }, 10000); // 10-second delay between words
-        }
-      }
-
-      // Enable or disable object detection when button is clicked
       document
         .getElementById("enableObjectDetection")
         .addEventListener("click", () => {
           objectDetectionEnabled = !objectDetectionEnabled;
           const button = document.getElementById("enableObjectDetection");
-
-          if (objectDetectionEnabled) {
-            button.classList.remove("red");
-            button.classList.add("green");
-            button.textContent = "Disable Object Detection";
-          } else {
-            button.classList.remove("green");
-            button.classList.add("red");
-            button.textContent = "Enable Object Detection";
-          }
+          button.textContent = objectDetectionEnabled
+            ? "Disable Object Detection"
+            : "Enable Object Detection";
         });
 
-      // Enable or disable text detection when button is clicked
-      document
-        .getElementById("enableTextDetection")
-        .addEventListener("click", () => {
-          textDetectionEnabled = !textDetectionEnabled;
-          const button = document.getElementById("enableTextDetection");
-
-          if (textDetectionEnabled) {
-            button.classList.remove("red");
-            button.classList.add("green");
-            button.textContent = "Disable Text Detection";
-            alert("Text detection enabled!");
-          } else {
-            button.classList.remove("green");
-            button.classList.add("red");
-            button.textContent = "Enable Text Detection";
-            alert("Text detection disabled!");
-          }
-        });
-
-      // Continuously capture frames from the camera and process them
-      setInterval(captureFrame, 1000); // Process every second
+      setInterval(captureFrame, 1000); // Capture a frame every second
     </script>
   </body>
 </html>
