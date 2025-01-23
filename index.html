@@ -54,6 +54,11 @@
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
       }
 
+      /* Flip the camera view horizontally */
+      #video {
+        transform: scaleX(-1);
+      }
+
       button {
         background-color: #007aff;
         color: white;
@@ -134,6 +139,13 @@
       let currentSpeechQueue = []; // Queue for announcements
       let isSpeaking = false;
 
+      // Store the last announced object data
+      let lastAnnounced = {
+        object: "",
+        position: "",
+        color: "",
+      };
+
       // Load the COCO-SSD model
       cocoSsd
         .load()
@@ -197,10 +209,12 @@
           document.getElementById("detectedObjects");
         detectedObjectsElement.innerHTML = "";
         predictions.forEach((prediction) => {
+          const position = getPosition(prediction.bbox[0]);
+          const color = getColorFromImage(prediction);
           const li = document.createElement("li");
-          li.textContent = `${prediction.class} - ${Math.round(
+          li.textContent = `${color} ${prediction.class} - ${Math.round(
             prediction.score * 100
-          )}%`;
+          )}% - ${position}`;
           detectedObjectsElement.appendChild(li);
         });
       }
@@ -221,11 +235,46 @@
       }
 
       function queueDetectedObjects(predictions) {
-        const objectNames = predictions.map((pred) => pred.class).join(", ");
-        if (objectNames && !isSpeaking) {
-          currentSpeechQueue.push(`Detected objects: ${objectNames}`);
-          speakNextInQueue();
+        predictions.forEach((pred) => {
+          const position = getPosition(pred.bbox[0]);
+          const color = getColorFromImage(pred);
+          const speechText = `${color} ${pred.class}, ${position}`;
+
+          // Check if the current detection is different from the last one
+          if (
+            pred.class !== lastAnnounced.object ||
+            position !== lastAnnounced.position ||
+            color !== lastAnnounced.color
+          ) {
+            currentSpeechQueue.push(speechText);
+            lastAnnounced = {
+              object: pred.class,
+              position: position,
+              color: color,
+            };
+          }
+        });
+        speakNextInQueue();
+      }
+
+      function getPosition(x) {
+        if (x < 213) {
+          return "Left";
+        } else if (x < 427) {
+          return "Center";
+        } else {
+          return "Right";
         }
+      }
+
+      function getColorFromImage(prediction) {
+        // This can be enhanced by adding actual color detection code if needed.
+        // For now, returning a placeholder color based on the prediction class.
+        const colorMap = {
+          person: "brown",
+          handbag: "blue",
+        };
+        return colorMap[prediction.class] || "unknown color";
       }
 
       function speakNextInQueue() {
@@ -250,9 +299,26 @@
           button.textContent = objectDetectionEnabled
             ? "Disable Object Detection"
             : "Enable Object Detection";
+          button.classList.toggle("green");
+          button.classList.toggle("red");
         });
 
-      setInterval(captureFrame, 1000); // Capture a frame every second
+      document
+        .getElementById("enableTextDetection")
+        .addEventListener("click", () => {
+          textDetectionEnabled = !textDetectionEnabled;
+          const button = document.getElementById("enableTextDetection");
+          button.textContent = textDetectionEnabled
+            ? "Disable Text Detection"
+            : "Enable Text Detection";
+          button.classList.toggle("green");
+          button.classList.toggle("red");
+          if (textDetectionEnabled) {
+            detectText();
+          }
+        });
+
+      setInterval(captureFrame, 1000);
     </script>
   </body>
 </html>
